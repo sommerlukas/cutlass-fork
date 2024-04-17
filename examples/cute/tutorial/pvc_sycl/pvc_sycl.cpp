@@ -13,8 +13,8 @@
 #include <string>
 #include <vector>
 
-#include "gemm_gen.hpp"
-#include "matrix_kernels.hpp"
+#include "../gemm_validation.hpp"
+#include "pvc_prefetch.hpp"
 #include <cute/numeric/arithmetic_tuple.hpp>
 #include <cute/tensor.hpp>
 
@@ -98,6 +98,7 @@ template <typename T>
 void check_results(size_t M, size_t N, const std::vector<T> &C,
                    const std::vector<T> &C_ref) {
   float err = 0.f;
+  size_t error_cnt = 0;
   for (size_t m = 0; m < M; m++) {
     for (size_t n = 0; n < N; n++) {
       auto index = m * N + n;
@@ -105,13 +106,19 @@ void check_results(size_t M, size_t N, const std::vector<T> &C,
                       std::max(std::fabs(C[index]), std::fabs(C_ref[index]));
       err = std::max(localErr, err);
       if (localErr >= threshold) {
-        std::cerr << "Error at m = " << m << ", n = " << n << ": (local error "
-                  << localErr << "): Wanted " << C_ref[index] << ", got "
-                  << C[index] << std::endl;
+        error_cnt++;
+        // std::cerr << "Error at m = " << m << ", n = " << n << ": (local error
+        // "
+        //           << localErr << "): Wanted " << C_ref[index] << ", got "
+        //          << C[index] << std::endl;
         // return;
       }
     }
   }
+
+  auto fail_rate = (float)error_cnt * 100 / (M * N);
+
+  std::cout << "\n\n==== fail rate is: " << fail_rate << "% !!!\n" << std::endl;
 }
 
 inline size_t time_event(sycl::event &e) {

@@ -7,9 +7,6 @@
 #define __global
 
 #define as_long (long)
-#define as_int8 static_cast<int8>
-
-#define cl_intel_subgroup_extended_block_read
 
 #define SGS_PER_WG_Y (WG_SIZE_Y / SG_SIZE_Y)
 #define SGS_PER_WG_X (WG_SIZE_X / SG_SIZE_X)
@@ -24,13 +21,6 @@
        .get_local_id()[0])
 
 #define BLOCK_PREFETCH_CACHE_TYPE LSC_LDCC_L1C_L3C
-
-#ifndef __has_builtin
-#define __has_builtin(x) 0
-#endif
-#if __has_builtin(__builtin_expect) == 0
-#define __builtin_expect(x)
-#endif
 
 void prefetch(const void *Ptr, size_t Count);
 
