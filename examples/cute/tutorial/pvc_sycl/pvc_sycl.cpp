@@ -186,12 +186,9 @@ go_dpas_blockread_vnni_tiled(sycl::queue queue, std::vector<dtype_acc> &c_vec,
               Tensor tCr =
                   make_tensor<dtype_acc>(Shape<_8, Int<MM>, Int<NN>>{});
 
-              auto A_copy = make_xe_2d_copy(
-                  make_tensor(make_gmem_ptr(A), make_shape(M, K)));
-              auto B_copy = make_xe_2d_copy(
-                  make_tensor(make_gmem_ptr(B), make_shape(K, N)));
-              auto C_copy = make_xe_2d_copy(
-                  make_tensor(make_gmem_ptr(C), make_shape(M, N)));
+            auto A_copy = make_xe_2d_copy<XE_2D_LOAD>(make_tensor(make_gmem_ptr(A), make_shape(M, K)));
+    auto B_copy = make_xe_2d_copy<XE_2D_LOAD>(make_tensor(make_gmem_ptr(B), make_shape(K, N)));
+    auto C_copy = make_xe_2d_copy<XE_2D_SAVE>(make_tensor(make_gmem_ptr(C), make_shape(M, N)));
               // TODO: - decide on how to deal with vector types
               //       - create layouts with tiling/partitioning
 
