@@ -48,9 +48,13 @@ std::string makeTestName(const std::string &func, int tM, int tN, int tK,
 }
 
 template <typename T>
-static void fill_matrix(std::vector<T> &M, size_t numRows, size_t numCols) {
+static void fill_matrix(T* M, size_t numRows, size_t numCols) {
   if (identityData) {
-    std::generate(std::begin(M), std::end(M), [&] { return 1.0_bf16; });
+    for (size_t r = 0; r < numRows; r++) {
+      for (size_t c = 0; c < numCols; c++) {
+        M[r * numCols + c] = bfloat16_t(1.0f);
+      }
+    };
   } else if (fixedData) {
     for (size_t r = 0; r < numRows; r++) {
       for (size_t c = 0; c < numCols; c++) {
@@ -61,13 +65,17 @@ static void fill_matrix(std::vector<T> &M, size_t numRows, size_t numCols) {
     std::random_device dev;
     std::mt19937 rng(dev());
     std::uniform_real_distribution<float> dist(-1.0, 1.0);
-    std::generate(std::begin(M), std::end(M),
-                  [&] { return bfloat16_t(dist(rng)); });
+    for (size_t r = 0; r < numRows; r++) {
+      for (size_t c = 0; c < numCols; c++) {
+        M[r * numCols + c] = bfloat16_t(dist(rng));
+      }
+    }
   }
 }
 
+
 template <typename T>
-static void vnni_matrix(std::vector<T> &dst, const std::vector<T> &src,
+static void vnni_matrix(T* dst, const T* src,
                         size_t numRows, size_t numCols, size_t factor) {
   for (size_t r = 0; r < numRows / factor; r++) {
     for (size_t c = 0; c < numCols; c++) {
@@ -80,8 +88,7 @@ static void vnni_matrix(std::vector<T> &dst, const std::vector<T> &src,
 }
 
 template <typename DstT, typename SrcT>
-static void compute_reference(std::vector<DstT> &C, const std::vector<SrcT> &A,
-                              const std::vector<SrcT> &B, size_t M, size_t N,
+static void compute_reference(DstT* C, SrcT* A, SrcT* B, size_t M, size_t N,
                               size_t K) {
   for (size_t m = 0; m < M; m++) {
     for (size_t n = 0; n < N; n++) {
@@ -96,8 +103,8 @@ static void compute_reference(std::vector<DstT> &C, const std::vector<SrcT> &A,
 }
 
 template <typename T>
-void check_results(size_t M, size_t N, const std::vector<T> &C,
-                   const std::vector<T> &C_ref) {
+void check_results(size_t M, size_t N, const T* C,
+                   const T* C_ref) {
   float err = 0.f;
   size_t error_cnt = 0;
   for (size_t m = 0; m < M; m++) {
@@ -136,10 +143,10 @@ inline size_t time_event(sycl::event &e) {
 
 template <int tM, int tN, int tK, int MM, int NN>
 static void
-go_dpas_blockread_vnni_tiled(sycl::queue queue, std::vector<dtype_acc> &c_vec,
-                             sycl::buffer<dtype_a> a, sycl::buffer<dtype_b> b,
+go_dpas_blockread_vnni_tiled(sycl::queue queue, dtype_acc* c_vec,
+                             dtype_a* a, dtype_b* b,
                              size_t M, size_t N, size_t K,
-                             const std::vector<dtype_acc> &C_ref) {
+                             dtype_acc* C_ref) {
   printf("%80s: ",
          makeTestName(__FUNCTION__, tM, tN, tK, MM, NN, M, N, K).c_str());
   fflush(stdout);
@@ -159,12 +166,12 @@ go_dpas_blockread_vnni_tiled(sycl::queue queue, std::vector<dtype_acc> &c_vec,
     sycl::nd_range<2> nd_range(group_range * local_range, local_range);
 
     for (int test = 0; test < total_iterations; test++) {
-      sycl::buffer c{c_vec};
+      // sycl::buffer c{c_vec};
       sycl::event ev;
       ev = queue.submit([&](sycl::handler &cgh) {
-        sycl::accessor accA{a, cgh, sycl::read_only};
-        sycl::accessor accB{b, cgh, sycl::read_only};
-        sycl::accessor accC{c, cgh, sycl::write_only};
+        // sycl::accessor accA{a, cgh, sycl::read_only};
+        // sycl::accessor accB{b, cgh, sycl::read_only};
+        // sycl::accessor accC{c, cgh, sycl::write_only};
 
         cgh.parallel_for /*<dpas_blockread_vnni_tiled<tM, tN, tK, MM, NN>>*/ (
             nd_range,
@@ -176,12 +183,12 @@ go_dpas_blockread_vnni_tiled(sycl::queue queue, std::vector<dtype_acc> &c_vec,
               const int n = id.get_group(1) * WG_SIZE_X +
                             (get_sub_group_id() % SGS_PER_WG_X) * SG_SIZE_X;
 
-              auto A = accA.get_multi_ptr<sycl::access::decorated::yes>().get();
-              auto B = accB.get_multi_ptr<sycl::access::decorated::yes>().get();
-              auto C = accC.get_multi_ptr<sycl::access::decorated::yes>().get();
+              auto A = a;
+              auto B = b;
+              auto C = c_vec;
 
-              Tensor tAr = make_tensor<ushort>(Shape<_8, Int<MM>>{});
-              Tensor tBr = make_tensor<uint>(Shape<_8, Int<NN>>{});
+              Tensor tAr = make_tensor<ushort>(Shape<_8, Int<MM>, Int<KK>>{});
+              Tensor tBr = make_tensor<uint>(Shape<_8, Int<NN>, Int<KK>>{});
               Tensor tCr =
                   make_tensor<dtype_acc>(Shape<_8, Int<MM>, Int<NN>>{});
 
@@ -226,9 +233,12 @@ go_dpas_blockread_vnni_tiled(sycl::queue queue, std::vector<dtype_acc> &c_vec,
               }
 #endif
 
-              for (int k = 0; k < K; k += tK) {
-                copy(A_copy, tAi(_, _, k), tAr);
-                copy(B_copy, tBi(_, k / 2, _), tBr);
+              for (int k = 0; k < K; k += tK * KK) {
+                for (int kk = 0; kk < KK; kk++) {
+                  copy(A_copy, tAi(_, _, k + kk * tK), tAr(_, _, kk));
+                  copy(B_copy, tBi(_, (k + kk * tK)/ 2, _), tBr(_, _, kk));
+                }
+                
 
 #ifdef PREFETCH_DEFAULT
                 if (k % ((PREFETCH_DISTANCE)*tK) == 0) {
@@ -282,16 +292,18 @@ int main(int argc, char **argv) {
   printf("\tFixed data?: %s\n", fixedData ? "true" : "false");
 
   sycl::queue queue{{sycl::property::queue::enable_profiling()}};
+  auto context = queue.get_info<sycl::info::queue::context>();
+  auto device = queue.get_info<sycl::info::queue::device>();
 
   const auto M = matrixSize;
   const auto N = matrixSize;
   const auto K = matrixSize;
 
-  std::vector<dtype_a> A_vec(M * K);
-  std::vector<dtype_b> B_vec(K * N);
-  std::vector<dtype_b> Bvnni_vec(K * N);
-  std::vector<dtype_acc> C_vec(M * N);
-  std::vector<dtype_acc> C_ref(M * N);
+  dtype_a* A_vec = (dtype_a*)syclcompat::malloc_shared(sizeof(dtype_a) * M * K);
+  dtype_b* B_vec = (dtype_b*)syclcompat::malloc_shared(sizeof(dtype_b) * N * K);
+  dtype_b* Bvnni_vec = (dtype_b*)syclcompat::malloc_shared(sizeof(dtype_b) * N * K);
+  dtype_acc* C_vec = (dtype_acc*)syclcompat::malloc_shared(sizeof(dtype_acc) * M * N);
+  dtype_acc* C_ref = (dtype_acc*)syclcompat::malloc_shared(sizeof(dtype_acc) * M * N);
 
   printf("Initializing source matrices...\n");
   fill_matrix(A_vec, M, K);
@@ -299,19 +311,37 @@ int main(int argc, char **argv) {
 
   vnni_matrix(Bvnni_vec, B_vec, K, N, 2);
 
+  // dtype_a* A_dev = (dtype_a*)sycl::aligned_alloc_device(
+  //         64, M * K * sizeof(dtype_a), device, context);
+  // dtype_b* B_dev = (dtype_b*)sycl::aligned_alloc_device(
+  //         64, K * N * sizeof(dtype_b), device, context);
+  // dtype_b* Bvnni_dev = (dtype_b*)sycl::aligned_alloc_device(
+  //         64, K * N * sizeof(dtype_b), device, context);
+  // dtype_acc* C_dev = (dtype_acc*)sycl::aligned_alloc_device(
+  //         64, M * N * sizeof(dtype_acc), device, context);
+
+  // queue.memcpy((void *)A_dev, (void *)A_vec, M * K * sizeof(dtype_a))
+  //           .wait();
+  // queue.memcpy((void *)B_dev, (void *)B_vec, N * K * sizeof(dtype_b))
+  //           .wait();
+  // queue.memcpy((void *)Bvnni_dev, (void *)Bvnni_vec, N * K * sizeof(dtype_b))
+  //           .wait();
+  // queue.memcpy((void *)C_dev, (void *)C_vec, M * N * sizeof(dtype_acc))
+  //           .wait();
+
   if (validate) {
     printf("Computing reference...\n");
     get_gemm_gold<dtype_a, dtype_b, dtype_acc>(
         M, N, K, mem_layout::row_major, mem_layout::row_major,
-        (dtype_a *)A_vec.data(), (dtype_b *)B_vec.data(),
-        (dtype_acc *)C_ref.data());
+        (dtype_a *)A_vec, (dtype_b *)B_vec,
+        (dtype_acc *)C_ref);
     // compute_reference(C_ref, A_vec, B_vec, M, N, K);
   }
 
   printf("Creating source buffers...\n");
-  sycl::buffer A{A_vec};
-  sycl::buffer B{B_vec};
-  sycl::buffer Bvnni{Bvnni_vec};
+  auto A = A_vec;
+  auto B = B_vec;
+  auto Bvnni = Bvnni_vec;
 
   printf("Running tests...\n");
 
@@ -341,6 +371,17 @@ int main(int argc, char **argv) {
 #endif
 
   printf("Done.\n");
+
+  free(A_vec, queue);
+  free(B_vec, queue);
+  free(C_vec, queue);
+  free(Bvnni_vec, queue);
+  free(C_ref, queue);
+
+  // free(C_dev, queue);
+  // free(B_dev, queue);
+  // free(Bvnni_dev, queue);
+  // free(A_dev, queue);
 
   return 0;
 }
