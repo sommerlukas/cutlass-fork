@@ -30,7 +30,7 @@ using dtype_acc = float;
 size_t testIterations = 50;
 dtype_acc threshold = 0.01f;
 
-#define B_VNNI 0
+#define B_VNNI
 
 #define WARMUP_ITERATIONS 0
 
@@ -130,7 +130,11 @@ void cute_gemm(size_t M, size_t K, size_t N) {
   vnni_matrix(Bvnni_host, B_host, K, N, 2);
 
   queue.memcpy(A_dev, A_host, sizeof(dtype_a) * M * K).wait();
+  #ifdef B_VNNI
   queue.memcpy(B_dev, Bvnni_host, sizeof(dtype_b) * N * K).wait();
+  #else
+  queue.memcpy(B_dev, B_host, sizeof(dtype_b) * N * K).wait();
+  #endif
   queue.memcpy(C_dev, C_host, sizeof(dtype_c) * M * N).wait();
 
   printf("Computing reference...\n");
@@ -183,15 +187,27 @@ void cute_gemm(size_t M, size_t K, size_t N) {
 
             Tensor tAr =
                 make_tensor<ushort>(Shape<Int<sg_tile_m * KK>, Int<1>>{});
+            #ifdef B_VNNI
             Tensor tBr =
                 make_tensor<ushort>(Shape<Int<KK * sg_tile_n / NN>, Int<NN>>{});
+            #else
+            static_assert(KK == 2, "KK is too small please manually set the parameter");
+            Tensor tBr =
+                make_tensor<ushort>(Shape<Int<tK * KK>, Int< NN>>{});
+            #endif
             Tensor tCr =
                 make_tensor<dtype_acc>(Shape<Int<tM>, Int<MM>, Int<NN>>{});
 
             auto A_copy = make_xe_2d_copy<XE_2D_U16x8x16x4x2_LD_N>(
                 make_tensor(make_gmem_ptr(A_dev), make_shape(M, K)));
+            #ifdef B_VNNI
             auto B_copy = make_xe_2d_copy<XE_2D_U16x16x16x2x1_LD_N>(
                 make_tensor(make_gmem_ptr(B_dev), make_shape(K, N)));
+            #else
+            auto B_copy = make_xe_2d_copy<XE_2D_U16x16x16x2x1_V>(
+                make_tensor(make_gmem_ptr(B_dev), make_shape(K, N)));
+            #endif
+
             auto C_copy = make_xe_2d_copy<XE_2D_U32x8x16x1x1_ST_N>(
                 make_tensor(make_gmem_ptr(C_dev), make_shape(M, N)));
             // TODO: - decide on how to deal with vector types
@@ -231,7 +247,11 @@ void cute_gemm(size_t M, size_t K, size_t N) {
 
             for (int k = 0; k < K + tK * KK - 1; k += tK * KK) {
               copy(A_copy, tAi(_, _, k), tAr);
+              #ifdef B_VNNI
               copy(B_copy, tBi(_, k / KK, _), tBr);
+              #else
+              copy(B_copy, tBi(_, k, _), tBr);
+              #endif
 
 #ifdef PREFETCH_DEFAULT
               for (uint32_t p = 0; p < PREFETCH_DISTANCE; p++) {
