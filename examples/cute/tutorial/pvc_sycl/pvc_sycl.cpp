@@ -30,7 +30,7 @@ using dtype_acc = float;
 size_t testIterations = 50;
 dtype_acc threshold = 0.01f;
 
-#define B_VNNI
+#define B_VNNI 0
 
 #define WARMUP_ITERATIONS 0
 
@@ -188,11 +188,11 @@ void cute_gemm(size_t M, size_t K, size_t N) {
             Tensor tCr =
                 make_tensor<dtype_acc>(Shape<Int<tM>, Int<MM>, Int<NN>>{});
 
-            auto A_copy = make_xe_2d_A_copy(
+            auto A_copy = make_xe_2d_copy<XE_2D_U16x8x16x4x2_LD_N>(
                 make_tensor(make_gmem_ptr(A_dev), make_shape(M, K)));
-            auto B_copy = make_xe_2d_B_copy(
+            auto B_copy = make_xe_2d_copy<XE_2D_U16x16x16x2x1_LD_N>(
                 make_tensor(make_gmem_ptr(B_dev), make_shape(K, N)));
-            auto C_copy = make_xe_2d_copy(
+            auto C_copy = make_xe_2d_copy<XE_2D_U32x8x16x1x1_ST_N>(
                 make_tensor(make_gmem_ptr(C_dev), make_shape(M, N)));
             // TODO: - decide on how to deal with vector types
             //       - create layouts with tiling/partitioning

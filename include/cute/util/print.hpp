@@ -34,7 +34,9 @@
 
 #include <cute/util/type_traits.hpp>
 
+#if defined(CUTLASS_ENABLE_SYCL)
 #define printf sycl::ext::oneapi::experimental::printf
+#endif
 
 //
 // CUDA compatible print and printf
