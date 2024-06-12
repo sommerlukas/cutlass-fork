@@ -4,6 +4,8 @@ on:
   schedule:
     - cron: "0 * * * *"
 
+permissions: {}
+
 jobs:
   mark-inactive-30d:
     runs-on: ubuntu-latest
