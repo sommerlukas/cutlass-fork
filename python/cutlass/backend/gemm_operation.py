@@ -542,6 +542,10 @@ class GemmArguments3x(GemmArguments2x):
         stride_D = StrideBatched_(self.ldd, bsD)
 
         # Superset of potential mainloop arguments
+        print(f"A pointer {hex(self.ptr_A)}")
+        print(f"B pointer {hex(self.ptr_B)}")
+        print(f"C pointer {hex(self.ptr_C)}")
+        print(f"D pointer {hex(self.ptr_D)}")
         generic_args = GenericMainloopArguments3x_(
             int(self.ptr_A),
             stride_A,
@@ -1122,6 +1126,17 @@ SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
 void ${operation_name}(typename Operator::Params const params, 
                        sycl::ext::oneapi::experimental::work_group_memory<char[]> mem) {
   auto* smem = &mem[0];
+  if(syclcompat::global_id::x() == 0 && syclcompat::global_id::y() == 0 && syclcompat::global_id::z() == 0){
+      printf("Pointer to A: %p: ", params.mainloop.gmem_tiled_copy_a.base_ptr);
+      printf("First two elements of A: 0x%x\n", ((int*)params.mainloop.gmem_tiled_copy_a.base_ptr)[0]);
+      printf("Pointer to B: %p: ", params.mainloop.gmem_tiled_copy_b.base_ptr);
+      printf("First two elements of B: 0x%x\n", ((int*)params.mainloop.gmem_tiled_copy_b.base_ptr)[0]);
+      printf("Pointer to C: %p: ", params.epilogue.xe_load_c.base_ptr);
+      printf("First element of C: 0x%x\n", ((int*)params.epilogue.xe_load_c.base_ptr)[0]);
+      printf("Pointer to D: %p: ", params.epilogue.xe_store_d.base_ptr);
+      printf("First element of D: 0x%x\n", ((int*)params.epilogue.xe_store_d.base_ptr)[0]);
+      printf("Calling op...\n");
+  }
 #else
 __global__ __launch_bounds__(Operator::MaxThreadsPerBlock, Operator::MinBlocksPerMultiprocessor)
 void ${operation_name}(__grid_constant__ typename Operator::Params const params) {
@@ -1129,8 +1144,20 @@ void ${operation_name}(__grid_constant__ typename Operator::Params const params)
   extern __shared__ char smem[];
 #endif
   // Declare pointer to dynamic shared memory.
+  
   Operator op;
   op(params, smem);
+  if(syclcompat::global_id::x() == 0 && syclcompat::global_id::y() == 0 && syclcompat::global_id::z() == 0){
+      printf("Returned from op\n");
+      printf("Pointer to A: %p: ", params.mainloop.gmem_tiled_copy_a.base_ptr);
+      printf("First two elements of A: 0x%x\n", ((int*)params.mainloop.gmem_tiled_copy_a.base_ptr)[0]);
+      printf("Pointer to B: %p: ", params.mainloop.gmem_tiled_copy_b.base_ptr);
+      printf("First two elements of B: 0x%x\n", ((int*)params.mainloop.gmem_tiled_copy_b.base_ptr)[0]);
+      printf("Pointer to C: %p: ", params.epilogue.xe_load_c.base_ptr);
+      printf("First element of C: 0x%x\n", ((int*)params.epilogue.xe_load_c.base_ptr)[0]);
+      printf("Pointer to D: %p: ", params.epilogue.xe_store_d.base_ptr);
+      printf("First element of D: 0x%x\n", ((int*)params.epilogue.xe_store_d.base_ptr)[0]);
+  }
 }
   """
     HostTemplate = r"""

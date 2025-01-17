@@ -338,7 +338,7 @@ class ArtifactManager:
             # Emit code to file
             tempfile.tempdir = "./"
             temp_cpp = tempfile.NamedTemporaryFile(
-                prefix="kernel_", suffix=".cpp", delete=True)
+                prefix="kernel_", suffix=".cpp", delete=False)
             temp_dump_dir = tempfile.TemporaryDirectory(
                 prefix="kernel_", suffix="_dpcpp")
             ignore_out = tempfile.NamedTemporaryFile(

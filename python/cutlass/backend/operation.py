@@ -131,6 +131,7 @@ class ExecutableOperation:
         globalSize.reverse()
         localSize = launch_config.block
         localSize.reverse()
+        print(f"Launching with global size {globalSize}, local size {localSize} and local memory {launch_config.shared_memory_capacity}")
         stream.submit(self.kernel, [raw_arg, local_mem], globalSize, localSize) 
 
     def run(self, host_workspace, device_workspace, launch_config, stream=cuda.CUstream(0)):

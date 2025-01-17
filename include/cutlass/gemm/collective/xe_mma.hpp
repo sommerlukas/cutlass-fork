@@ -37,6 +37,7 @@
 #include "cute/atom/mma_atom.hpp"
 #include "cute/algorithm/gemm.hpp"
 #include "cute/tensor_predicate.hpp"
+#include <iostream>
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -171,6 +172,18 @@ struct CollectiveMma<
 
     auto problem_shape_MNKL = append<4>(problem_shape, 1);
     auto [M,N,K,L] = problem_shape_MNKL;
+
+    std::cout << "Pointer to A: " << args.ptr_A << std::endl;
+    std::cout << "Pointer to B: " << args.ptr_B << std::endl;
+    std::cout << "Problem shape (M, N, K, L):" << M << ", " << N << ", " << K << ", " << L << std::endl;
+    std::cout << "Mainloop argument size: " << sizeof(args) << std::endl;
+    const void* p = &args;
+    const int64_t* raw = (int64_t*)p;
+    for(size_t i = 0; i < 6; ++i){
+      std::cout << std::hex << raw[i] << std::dec << std::endl;
+    }
+
+
 
     XE_Copy_A copyA = make_tiled_copy(Copy_Atom<Copy_Traits<GmemTiledCopyA>, ElementA>{}.with(args.ptr_A, K, M, K),
                                       Layout<Shape<_1, Int<SubgroupSize>>>{},

@@ -42,6 +42,7 @@
 #include "cutlass/epilogue/fusion/callbacks.hpp"
 #include "cutlass/epilogue/fusion/sm90_visitor_tma_warpspecialized.hpp"
 #include "cutlass/detail/layout.hpp"
+#include <iostream>
 
 #include "cute/tensor.hpp"
 
@@ -184,6 +185,16 @@ public:
     // Optionally append 1s until problem shape is rank-4 in case its is only rank-3 (MNK)
     auto problem_shape_MNKL = append<4>(problem_shape, 1);
     auto [M, N, K, L] = problem_shape_MNKL;
+
+    std::cout << "Pointer to C: " << args.ptr_C << std::endl;
+    std::cout << "Pointer to D: " << args.ptr_D << std::endl;
+    std::cout << "Problem shape (M, N, K, L):" << M << ", " << N << ", " << K << ", " << L << std::endl;
+    std::cout << "Epilogue argument size: " << sizeof(Arguments) << std::endl;
+    const void* p = &args;
+    const int64_t* raw = (int64_t*)p;
+    for(size_t i = 0; i < 11; ++i){
+      std::cout << std::hex << raw[i] << std::dec << std::endl;
+    }
 
     XE_Copy_C xe_load_c = {};
     if constexpr (is_source_supported) {
